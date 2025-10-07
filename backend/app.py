@@ -2,6 +2,7 @@ from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import uuid
 import json
+from datetime import datetime # Thêm import này
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'caro_secret_key'
@@ -10,7 +11,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # Lưu trữ các phòng game
 rooms = {}
 # Lưu trữ thông tin người chơi
-players = {}
+players = {} # Lưu ý: `players` global này không được sử dụng, tôi sẽ sử dụng dữ liệu trong `GameRoom`
 
 class GameRoom:
     def __init__(self, room_id):
@@ -33,7 +34,9 @@ class GameRoom:
         return None
 
     def remove_player(self, player_id):
+        removed_player_name = next((p['name'] for p in self.players if p['id'] == player_id), 'Một người chơi')
         self.players = [p for p in self.players if p['id'] != player_id]
+        return removed_player_name
 
     def make_move(self, row, col, player_id):
         if self.game_status != 'playing':
@@ -111,13 +114,19 @@ def handle_connect():
 def handle_disconnect():
     print(f'Client disconnected: {request.sid}')
     # Xóa người chơi khỏi phòng
-    for room_id, room in rooms.items():
-        room.remove_player(request.sid)
-        if len(room.players) == 0:
-            del rooms[room_id]
-        else:
-            # Thông báo cho người chơi còn lại
-            socketio.emit('player_left', {'message': 'Đối thủ đã rời khỏi phòng'}, room=room_id)
+    for room_id, room in list(rooms.items()): # Dùng list(rooms.items()) để tránh lỗi thay đổi kích thước dict
+        removed_player_name = room.remove_player(request.sid)
+        if removed_player_name:
+            if len(room.players) == 0:
+                print(f"Room {room_id} deleted.")
+                del rooms[room_id]
+            else:
+                # Thông báo cho người chơi còn lại
+                socketio.emit('player_left', {
+                    'message': f'{removed_player_name} đã rời khỏi phòng. Vui lòng chờ đối thủ mới.'
+                }, room=room_id)
+                leave_room(room_id)
+                break
 
 @socketio.on('create_room')
 def handle_create_room(data):
@@ -160,10 +169,11 @@ def handle_join_room(data):
         'players': room.players
     })
     
-    # Thông báo cho tất cả người chơi trong phòng
+    # Thông báo cho tất cả người chơi trong phòng (bao gồm người vừa join)
     socketio.emit('player_joined', {
         'player_symbol': player_symbol,
-        'players': room.players
+        'players': room.players,
+        'message': f'{player_name} ({player_symbol}) đã tham gia phòng.'
     }, room=room_id)
     
     # Thông báo đủ 2 người chơi, chờ bắt đầu game
@@ -188,7 +198,9 @@ def handle_start_game(data):
         print(f'Starting game for room {room_id} with {len(room.players)} players')
         socketio.emit('game_started', {
             'current_player': room.current_player,
-            'board': room.board
+            'board': room.board,
+            'players': room.players,
+            'message': 'Trận đấu đã bắt đầu! Quân X đi trước.'
         }, room=room_id)
         print(f'Game started event sent to room {room_id}')
 
@@ -232,8 +244,52 @@ def handle_reset_game(data):
     
     socketio.emit('game_reset', {
         'board': room.board,
-        'current_player': room.current_player
+        'current_player': room.current_player,
+        'message': 'Game đã được đặt lại. Bắt đầu lượt mới.'
     }, room=room_id)
+
+
+# --- CHỨC NĂNG CHAT MỚI ---
+@socketio.on('send_chat_message')
+def handle_chat_message(data):
+    """
+    Xử lý khi người chơi gửi tin nhắn chat.
+    Sự kiện gửi từ frontend: 'send_chat_message'
+    Sự kiện phát tới frontend: 'receive_chat_message'
+    """
+    room_id = data.get('room_id')
+    user_id = request.sid
+    message_content = data.get('message')
+
+    # 1. Kiểm tra phòng tồn tại
+    if room_id not in rooms:
+        emit('error', {'message': 'Phòng chat không tồn tại.'})
+        return
+
+    room = rooms[room_id]
+    # 2. Tìm tên người chơi
+    player_data = next((p for p in room.players if p['id'] == user_id), None)
+    
+    if not player_data:
+        emit('error', {'message': 'Bạn không thuộc phòng này và không thể chat.'})
+        return
+        
+    user_name = player_data['name']
+    
+    # 3. Xây dựng gói tin hoàn chỉnh
+    chat_message = {
+        'user_name': user_name,
+        'message': message_content,
+        'timestamp': datetime.now().strftime('%H:%M:%S') # Định dạng thời gian cho dễ đọc
+    }
+
+    # 4. Phát tin nhắn tới tất cả người chơi trong phòng (room)
+    # LƯU Ý: Frontend cần lắng nghe sự kiện 'receive_chat_message'
+    socketio.emit('receive_chat_message', chat_message, room=room_id)
+    print(f"[{chat_message['timestamp']}] Chat in Room {room_id} from {user_name}: {message_content}")
+
+# --- KẾT THÚC CHỨC NĂNG CHAT ---
+
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5001)

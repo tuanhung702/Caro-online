@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import Board from "../components/Board";
 import Status from "../components/Status";
-
+import ChatBox from "../components/ChatBox";
 function GameOnline() {
   const navigate = useNavigate();
   const socketRef = useRef(null);
@@ -23,11 +23,12 @@ function GameOnline() {
   const [roomCode, setRoomCode] = useState('');
   const [showRoomInput, setShowRoomInput] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
 
   useEffect(() => {
     // Kết nối tới server
     // Kết nối tới server - sử dụng backend ngrok
-    const serverUrl = 'https://616592d6a91a.ngrok-free.app';
+    const serverUrl = ' https://ffafc22151c0.ngrok-free.app';
     console.log('Connecting to server:', serverUrl);
     socketRef.current = io(serverUrl, {
       transports: ['websocket', 'polling'],
@@ -142,6 +143,11 @@ function GameOnline() {
       addMessage(`Lỗi: ${data.message}`);
     });
 
+    // Lắng nghe tin nhắn chat từ server
+    socketRef.current.on('receive_chat_message', (data) => {
+      setChatMessages(prev => [...prev, data]);
+    });
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -203,6 +209,16 @@ function GameOnline() {
       socketRef.current.disconnect();
     }
     navigate('/');
+  };
+
+  // Gửi tin nhắn chat lên server
+  const handleSendChat = (message) => {
+    if (gameState.roomId && message.trim()) {
+      socketRef.current.emit('send_chat_message', {
+        room_id: gameState.roomId,
+        message: message
+      });
+    }
   };
 
   if (!gameState.isConnected) {
@@ -383,16 +399,11 @@ function GameOnline() {
 
           {/* Chat/Log Area */}
           <div className="w-80">
-            <div className="bg-white shadow-lg rounded-lg p-4 h-96 flex flex-col">
-              <h3 className="font-bold mb-2">Thông báo</h3>
-              <div className="flex-1 overflow-y-auto space-y-1">
-                {messages.map((msg, index) => (
-                  <div key={index} className="text-sm">
-                    <span className="text-gray-500">[{msg.time}]</span> {msg.text}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ChatBox
+              messages={chatMessages}
+              onSend={handleSendChat}
+              playerName={playerName}
+            />
           </div>
         </div>
       </div>
