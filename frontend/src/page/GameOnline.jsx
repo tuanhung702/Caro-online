@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import Board from "../components/Board";
 import Status from "../components/Status";
+import ChatBox from "../components/ChatBox";
 
 function GameOnline() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ function GameOnline() {
   useEffect(() => {
     // Kết nối tới server
     // Kết nối tới server - sử dụng backend ngrok
-    const serverUrl = 'https://616592d6a91a.ngrok-free.app';
+    const serverUrl = 'http://127.0.0.1:5001';
     console.log('Connecting to server:', serverUrl);
     socketRef.current = io(serverUrl, {
       transports: ['websocket', 'polling'],
@@ -383,6 +384,15 @@ function GameOnline() {
 
           {/* Chat/Log Area */}
           <div className="w-80">
+            {/* Chat Box */}
+<div className="w-80">
+  <ChatBox 
+    socket={socketRef.current} 
+    roomId={gameState.roomId} 
+    player={playerName || gameState.playerSymbol} 
+  />
+</div>
+
             <div className="bg-white shadow-lg rounded-lg p-4 h-96 flex flex-col">
               <h3 className="font-bold mb-2">Thông báo</h3>
               <div className="flex-1 overflow-y-auto space-y-1">

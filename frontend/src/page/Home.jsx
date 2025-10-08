@@ -23,7 +23,7 @@ export default function Home({ onLogout }) {
           </button>
         </div>
       </header>
-a so
+
       {/* Main Content */}
      <main className="flex-1 flex flex-col items-center justify-center bg-gradient-to-b from-white to-gray-100">
   <h2 className="text-6xl font-extrabold text-blue-700 mb-10 drop-shadow-lg">

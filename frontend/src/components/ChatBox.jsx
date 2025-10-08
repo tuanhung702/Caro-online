@@ -7,7 +7,6 @@ function ChatBox({ socket, roomId, player }) {
   useEffect(() => {
     if (!socket) return;
 
-    // Nhận tin nhắn từ server
     socket.on("chat_message", (data) => {
       setMessages((prev) => [...prev, data]);
     });
@@ -29,40 +28,38 @@ function ChatBox({ socket, roomId, player }) {
   };
 
   return (
-        <div className="bg-white shadow-lg rounded-lg p-4 h-96 flex flex-col">
-        <h3 className="font-bold mb-2"> CHAT</h3>
-        <div className="flex-1 overflow-y-auto border p-2 mb-2">
-            {messages.map((msg, index) => (
-            <div key={index} className="text-sm">
-                <b>{msg.player}:</b> {msg.text}
-            </div>
-            ))}
-        </div>
-        <div className="flex">
-            <form
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    sendMessage();
-                }}
-                className="flex"
-                >
-                <input
-                    type="text"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    className="flex-1 border rounded px-2 py-1 mr-2"
-                    placeholder="Nhập tin nhắn..."
-                />
- 
-            </form>
+    <div className="bg-white shadow-lg rounded-lg p-4 h-96 flex flex-col">
+      <h3 className="font-bold mb-2"> Chat</h3>
+      <div className="flex-1 overflow-y-auto border p-2 mb-2">
+        {messages.map((msg, index) => (
+          <div key={index} className="text-sm">
+            <b>{msg.player}:</b> {msg.text}
+          </div>
+        ))}
+      </div>
 
+      {/* Dùng form thay cho div */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          sendMessage();
+        }}
+        className="flex"
+      >
+        <input
+          type="text"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          className="flex-1 border rounded px-2 py-1 mr-2"
+          placeholder="Nhập tin nhắn..."
+        />
         <button
-          onClick={sendMessage}
+          type="submit"
           className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition"
         >
           Gửi
         </button>
-      </div>
+      </form>
     </div>
   );
 }
