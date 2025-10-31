@@ -1,16 +1,28 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Home from "./page/Home";
-import GameOffline from "./page/GameOffline";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import Login from "./page/Login";
+import Register from "./page/Register";
 import GameOnline from "./page/GameOnline";
-
-export default function App() {
+import Home from "./page/Home";
+import Room from "./page/Room";
+function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/GameOffline" element={<GameOffline />} />
-        <Route path="/GameOnline" element={<GameOnline />} />
+        {/* Khi vào trang gốc "/", tự động chuyển sang /login */}
+        <Route path="/" element={<Navigate to="/login" />} />
+
+        {/* Trang đăng nhập */}
+        <Route path="/login" element={<Login />} />
+
+        {/* Trang đăng ký */}
+        <Route path="/register" element={<Register />} />
+          <Route path="/room" element={<Room />} />
+        {/* Trang chơi game */}
+        <Route path="/home" element={<Home />} />
+        <Route path="/gameonline" element={<GameOnline />} />
       </Routes>
     </Router>
   );
 }
+
+export default App;

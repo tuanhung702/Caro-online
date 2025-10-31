@@ -8,7 +8,7 @@ import ChatBox from "../components/ChatBox";
 function GameOnline() {
   const navigate = useNavigate();
   const socketRef = useRef(null);
-  
+
   const [gameState, setGameState] = useState({
     roomId: '',
     playerSymbol: '',
@@ -19,11 +19,12 @@ function GameOnline() {
     winner: null,
     isConnected: false
   });
-  
-  const [playerName, setPlayerName] = useState('');
+  const currentUser = JSON.parse(localStorage.getItem("currentUser"));
+  const [playerName, setPlayerName] = useState(currentUser?.username || '');
   const [roomCode, setRoomCode] = useState('');
   const [showRoomInput, setShowRoomInput] = useState(false);
   const [messages, setMessages] = useState([]);
+
 
   useEffect(() => {
     // Kết nối tới server
@@ -35,7 +36,7 @@ function GameOnline() {
       timeout: 20000,
       forceNew: true
     });
-    
+
     socketRef.current.on('connect', () => {
       console.log(' Connected to server successfully!');
       setGameState(prev => ({ ...prev, isConnected: true }));
@@ -118,7 +119,7 @@ function GameOnline() {
         gameStatus: data.game_status,
         winner: data.winner
       }));
-      
+
       if (data.game_status === 'finished') {
         addMessage(`Game kết thúc! Người thắng: ${data.winner}`);
       }
@@ -167,9 +168,9 @@ function GameOnline() {
       alert('Vui lòng nhập tên người chơi và mã phòng');
       return;
     }
-    socketRef.current.emit('join_room', { 
-      room_id: roomCode, 
-      player_name: playerName 
+    socketRef.current.emit('join_room', {
+      room_id: roomCode,
+      player_name: playerName
     });
   };
 
@@ -180,9 +181,9 @@ function GameOnline() {
   };
 
   const handleClick = (row, col) => {
-    if (gameState.gameStatus !== 'playing' || 
-        gameState.board[row][col] || 
-        gameState.currentPlayer !== gameState.playerSymbol) {
+    if (gameState.gameStatus !== 'playing' ||
+      gameState.board[row][col] ||
+      gameState.currentPlayer !== gameState.playerSymbol) {
       return;
     }
 
@@ -203,7 +204,7 @@ function GameOnline() {
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
-    navigate('/');
+    navigate('/home');
   };
 
   if (!gameState.isConnected) {
@@ -222,7 +223,7 @@ function GameOnline() {
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-lg w-96">
           <h1 className="text-2xl font-bold mb-6 text-center">Caro Online</h1>
-          
+
           <div className="mb-4">
             <label className="block text-sm font-medium mb-2">Tên người chơi:</label>
             <input
@@ -241,14 +242,14 @@ function GameOnline() {
             >
               Tạo phòng mới
             </button>
-            
+
             <button
               onClick={() => setShowRoomInput(!showRoomInput)}
               className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition"
             >
               Tham gia phòng
             </button>
-            
+
             {showRoomInput && (
               <div className="mt-4">
                 <input
@@ -269,7 +270,7 @@ function GameOnline() {
           </div>
 
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/home')}
             className="w-full mt-4 bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 transition"
           >
             Quay lại
@@ -284,14 +285,13 @@ function GameOnline() {
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-lg w-96 text-center">
           <h1 className="text-2xl font-bold mb-6">Sẵn sàng bắt đầu!</h1>
-          
+
           <div className="mb-6">
             <h3 className="text-lg font-semibold mb-4">Người chơi trong phòng:</h3>
             {gameState.players.map((player, index) => (
               <div key={index} className="flex items-center justify-center gap-2 mb-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
-                  player.symbol === 'X' ? 'bg-red-500' : 'bg-blue-500'
-                }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${player.symbol === 'X' ? 'bg-red-500' : 'bg-blue-500'
+                  }`}>
                   {player.symbol}
                 </div>
                 <span>{player.name}</span>
@@ -345,9 +345,8 @@ function GameOnline() {
               <div className="flex justify-between items-center">
                 {gameState.players.map((player, index) => (
                   <div key={index} className="flex flex-col items-center">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold ${
-                      player.symbol === 'X' ? 'bg-red-500' : 'bg-blue-500'
-                    }`}>
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold ${player.symbol === 'X' ? 'bg-red-500' : 'bg-blue-500'
+                      }`}>
                       {player.symbol}
                     </div>
                     <span className="text-sm mt-1">{player.name}</span>
@@ -360,9 +359,9 @@ function GameOnline() {
             </div>
 
             {/* Game Status */}
-            <Status 
-              xIsNext={gameState.currentPlayer === 'X'} 
-              winner={gameState.winner} 
+            <Status
+              xIsNext={gameState.currentPlayer === 'X'}
+              winner={gameState.winner}
             />
 
             {/* Board */}
@@ -385,13 +384,13 @@ function GameOnline() {
           {/* Chat/Log Area */}
           <div className="w-80">
             {/* Chat Box */}
-<div className="w-80">
-  <ChatBox 
-    socket={socketRef.current} 
-    roomId={gameState.roomId} 
-    player={playerName || gameState.playerSymbol} 
-  />
-</div>
+            <div className="w-80">
+              <ChatBox
+                socket={socketRef.current}
+                roomId={gameState.roomId}
+                player={playerName || gameState.playerSymbol}
+              />
+            </div>
 
             <div className="bg-white shadow-lg rounded-lg p-4 h-96 flex flex-col">
               <h3 className="font-bold mb-2">Thông báo</h3>
