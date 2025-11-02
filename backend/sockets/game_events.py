@@ -1,131 +1,81 @@
 from flask import request
-from flask_socketio import emit, join_room
+from flask_socketio import emit
+from states.room_manager import room_manager 
 from socketio_instance import socketio
-from rooms import GameRoom
-import uuid
-
-# Lưu trữ các phòng game
-rooms = {}
-
-@socketio.on('connect')
-def handle_connect():
-    print(f'Client connected: {request.sid}')
-    emit('connected', {'message': 'Connected to server'})
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    print(f'Client disconnected: {request.sid}')
-    for room_id, room in list(rooms.items()):
-        room.remove_player(request.sid)
-        if len(room.players) == 0:
-            del rooms[room_id]
-        else:
-            socketio.emit('player_left', {'message': 'Đối thủ đã rời khỏi phòng'}, room=room_id)
-
-@socketio.on('create_room')
-def handle_create_room(data):
-    player_name = data.get('player_name', 'Player')
-    room_id = str(uuid.uuid4())[:8]
-
-    room = GameRoom(room_id)
-    player_symbol = room.add_player(request.sid, player_name)
-
-    rooms[room_id] = room
-    join_room(room_id)
-
-    emit('room_created', {
-        'room_id': room_id,
-        'player_symbol': player_symbol,
-        'players': room.players
-    })
-
-@socketio.on('join_room')
-def handle_join_room(data):
-    room_id = data.get('room_id')
-    player_name = data.get('player_name', 'Player')
-
-    if room_id not in rooms:
-        emit('error', {'message': 'Phòng không tồn tại'})
-        return
-
-    room = rooms[room_id]
-    if len(room.players) >= 2:
-        emit('error', {'message': 'Phòng đã đầy'})
-        return
-
-    player_symbol = room.add_player(request.sid, player_name)
-    join_room(room_id)
-
-    emit('room_joined', {
-        'room_id': room_id,
-        'player_symbol': player_symbol,
-        'players': room.players
-    })
-
-    socketio.emit('player_joined', {
-        'player_symbol': player_symbol,
-        'players': room.players
-    }, room=room_id)
-
-    if len(room.players) == 2:
-        socketio.emit('ready_to_start', {
-            'players': room.players,
-            'room_id': room_id
-        }, room=room_id)
-
-@socketio.on('start_game')
-def handle_start_game(data):
-    room_id = data.get('room_id')
-    if room_id not in rooms:
-        emit('error', {'message': 'Phòng không tồn tại'})
-        return
-
-    room = rooms[room_id]
-    if len(room.players) == 2:
-        room.start_game()
-        socketio.emit('game_started', {
-            'current_player': room.current_player,
-            'board': room.board
-        }, room=room_id)
+# ⚠️ Import hàm parse_data từ room_events để xử lý JSON string
+from .room_events import parse_data 
+# -------------------------------------------------------------------------
 
 @socketio.on('make_move')
 def handle_make_move(data):
+    # 1. Parse data để đảm bảo nó là dictionary
+    data = parse_data(data)
+    if data is None:
+        emit('error', {'message': 'Dữ liệu gửi lên không phải là JSON hợp lệ.'}, room=request.sid)
+        return
+        
     room_id = data.get('room_id')
     row = data.get('row')
     col = data.get('col')
+    
+    # Debug log (Nên thêm vào để tiện theo dõi)
+    print(f"DEBUG: Nhận make_move từ client {request.sid} Room: {room_id}, ({row}, {col})")
 
-    if room_id not in rooms:
-        emit('error', {'message': 'Phòng không tồn tại'})
+    room = room_manager.get_room(room_id)
+    
+    if not room:
+        emit('error', {'message': 'Phòng không tồn tại'}, room=request.sid)
         return
 
-    room = rooms[room_id]
+    # room.make_move cần được định nghĩa để trả về True/False (success)
     success = room.make_move(row, col, request.sid)
 
     if success:
+        # Gửi thông báo nước đi
         socketio.emit('move_made', {
             'row': row,
             'col': col,
-            'player': room.board[row][col],
+            'player': room.board[row][col], 
             'current_player': room.current_player,
-            'board': room.board,
-            'game_status': room.game_status,
-            'winner': room.winner
+            'board': room.board # Rất quan trọng để client vẽ lại bàn cờ
         }, room=room_id)
+        
+        # Logic Game Over
+        if room.game_status == 'finished':
+             socketio.emit('game_over', {
+                'winner': room.winner,
+                'message': f"Người chơi {room.winner} đã thắng!"
+             }, room=room_id)
+             # Cập nhật danh sách phòng công khai (Trạng thái chuyển sang 'finished')
+             socketio.emit('rooms_list_update', room_manager.get_available_rooms())
+
     else:
-        emit('error', {'message': 'Nước đi không hợp lệ'})
+        # Có thể thêm logic trả về thông báo lỗi cụ thể từ room.make_move
+        emit('error', {'message': 'Nước đi không hợp lệ'}, room=request.sid)
 
 @socketio.on('reset_game')
 def handle_reset_game(data):
+    # 1. Parse data để đảm bảo nó là dictionary
+    data = parse_data(data)
+    if data is None:
+        emit('error', {'message': 'Dữ liệu gửi lên không phải là JSON hợp lệ.'}, room=request.sid)
+        return
+        
     room_id = data.get('room_id')
 
-    if room_id not in rooms:
-        emit('error', {'message': 'Phòng không tồn tại'})
+    room = room_manager.get_room(room_id)
+    
+    if not room:
+        emit('error', {'message': 'Phòng không tồn tại'}, room=request.sid)
         return
 
-    room = rooms[room_id]
     room.reset_game()
+    print(f"DEBUG: Reset game thành công cho phòng {room_id}.")
 
     socketio.emit('game_reset', {
         'board': room.board,
         'current_player': room.current_player
     }, room=room_id)
+    
+    # Cập nhật danh sách phòng công khai (Trạng thái chuyển từ 'finished' sang 'playing'/'available')
+    socketio.emit('rooms_list_update', room_manager.get_available_rooms())

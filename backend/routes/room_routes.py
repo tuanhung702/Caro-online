@@ -1,33 +1,26 @@
-# from flask import Blueprint, jsonify, request
-# from room_manager import GameRoom
+# routes/room_routes.py
 
-# room_bp = Blueprint('room_bp', __name__)
+from flask import Blueprint, jsonify
+# ⚠️ Import instance room_manager từ states
+from states.room_manager import room_manager 
 
-# # Danh sách phòng hiện tại
-# rooms = {}
+room_bp = Blueprint('rooms', __name__)
 
-# @room_bp.route("/rooms", methods=["GET"])
-# def get_rooms():
-#     room_list = [
-#         {
-#             "room_id": rid,
-#             "players": len(room.players),
-#             "status": room.game_status
-#         }
-#         for rid, room in rooms.items()
-#     ]
-#     return jsonify(room_list), 200
-
-
-# @room_bp.route("/create_room", methods=["POST"])
-# def create_room():
-#     data = request.get_json()
-#     room_id = data.get("room_id")
-
-#     if not room_id:
-#         return jsonify({"error": "Missing room_id"}), 400
-#     if room_id in rooms:
-#         return jsonify({"error": "Room already exists"}), 400
-
-#     rooms[room_id] = GameRoom(room_id)
-#     return jsonify({"message": "Room created", "room_id": room_id}), 201
+@room_bp.route('/rooms', methods=['GET'])
+def list_rooms():
+    """
+    Endpoint HTTP để trả về danh sách các phòng đang chờ hoặc đã kết thúc.
+    """
+    # Gọi phương thức từ RoomManager
+    rooms_list_public = room_manager.get_available_rooms()
+    
+    return jsonify({
+        'status': 'success',
+        'rooms': rooms_list_public
+    })
+    
+# Tùy chọn: Thêm endpoint POST nếu bạn muốn tạo phòng bằng HTTP
+# @room_bp.route('/rooms', methods=['POST'])
+# def create_room_http():
+#     # ... logic tạo phòng
+#     pass
