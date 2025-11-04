@@ -2,8 +2,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Login from "./page/Login";
 import Register from "./page/Register";
 import GameOnline from "./page/GameOnline";
+import GameOffline from "./page/GameOffline";
 import Home from "./page/Home";
-import Room from "./page/Room";
+
 function App() {
   return (
     <Router>
@@ -16,9 +17,10 @@ function App() {
 
         {/* Trang đăng ký */}
         <Route path="/register" element={<Register />} />
-          <Route path="/room" element={<Room />} />
+       
         {/* Trang chơi game */}
         <Route path="/home" element={<Home />} />
+        <Route path="/gameOffline" element={<GameOffline />} />
         <Route path="/gameonline" element={<GameOnline />} />
       </Routes>
     </Router>

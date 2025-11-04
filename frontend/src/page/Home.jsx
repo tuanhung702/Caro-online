@@ -53,7 +53,7 @@ export default function Home() {
         <div className="bg-white border border-gray-300 rounded-3xl shadow-2xl p-10 flex flex-col items-center gap-8 w-96 max-w-md">
           {/* Nút Game Offline */}
           <button
-            onClick={() => navigate("/GameOffline")}
+            onClick={() => navigate("/gameOffline")}
             className="w-full bg-green-600 text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-md flex items-center justify-center gap-3 hover:bg-green-700 transition"
           >
             <FaPlay size={22} />
@@ -71,13 +71,7 @@ export default function Home() {
 
           {/* ROOM & RANK */}
           <div className="flex gap-5 w-full">
-            <button
-              onClick={() => navigate("/room")}
-              className="flex-1 bg-pink-700 text-white px-6 py-4 text-lg font-semibold rounded-xl shadow-md flex items-center justify-center gap-2 hover:bg-pink-600 transition"
-            >
-              <FaList size={20} />
-              ROOM
-            </button>
+            
             <button
               onClick={() => navigate("/rank")}
               className="flex-1 bg-pink-700 text-white px-6 py-4 text-lg font-semibold rounded-xl shadow-md flex items-center justify-center gap-2 hover:bg-pink-600 transition"

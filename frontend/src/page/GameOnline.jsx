@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
-import Board from "../components/Board";
-import Status from "../components/Status";
-import ChatBox from "../components/ChatBox";
+import { FaArrowLeft } from "react-icons/fa";
+
+import RoomList from "../components/RoomList";
+import CreateRoomModal from "../components/CreateRoomModal";
+import PasswordModal from "../components/PasswordModal";
+import WaitingRoom from "../components/WaitingRoom";
+import GameBoard from "../components/GameBoard";
 
 function GameOnline() {
   const navigate = useNavigate();
@@ -19,17 +23,22 @@ function GameOnline() {
     winner: null,
     isConnected: false
   });
-  const currentUser = JSON.parse(localStorage.getItem("currentUser"));
-  const [playerName, setPlayerName] = useState(currentUser?.username || '');
-  const [roomCode, setRoomCode] = useState('');
-  const [showRoomInput, setShowRoomInput] = useState(false);
+
+  const [rooms, setRooms] = useState([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [createRoomName, setCreateRoomName] = useState('');
+  const [createRoomPassword, setCreateRoomPassword] = useState('');
+  const [joinPassword, setJoinPassword] = useState('');
   const [messages, setMessages] = useState([]);
 
+  const currentUser = JSON.parse(localStorage.getItem("currentUser"));
+  const playerName = currentUser?.username || 'Player';
 
   useEffect(() => {
     // Kết nối tới server
-    // Kết nối tới server - sử dụng backend ngrok
-    const serverUrl = 'http://127.0.0.1:5001';
+    const serverUrl = 'http://localhost:5001';
     console.log('Connecting to server:', serverUrl);
     socketRef.current = io(serverUrl, {
       transports: ['websocket', 'polling'],
@@ -38,76 +47,88 @@ function GameOnline() {
     });
 
     socketRef.current.on('connect', () => {
-      console.log(' Connected to server successfully!');
+      console.log('✅ Connected to server successfully!');
       setGameState(prev => ({ ...prev, isConnected: true }));
       addMessage('Đã kết nối tới server');
+      // Yêu cầu danh sách phòng
+      socketRef.current.emit('get_rooms');
     });
 
     socketRef.current.on('disconnect', () => {
-      console.log(' Disconnected from server');
+      console.log('❌ Disconnected from server');
       setGameState(prev => ({ ...prev, isConnected: false }));
       addMessage('Mất kết nối với server');
     });
 
     socketRef.current.on('connect_error', (error) => {
-      console.error(' Connection error:', error);
+      console.error('❌ Connection error:', error);
       addMessage(`Lỗi kết nối: ${error.message}`);
     });
 
-    socketRef.current.on('room_created', (data) => {
+    // Nhận danh sách phòng
+    socketRef.current.on('rooms_list', (data) => {
+      console.log('📦 Danh sách phòng:', data.rooms);
+      setRooms(data.rooms || []);
+    });
+
+    socketRef.current.on('rooms_list_update', (data) => {
+      console.log('🔄 Cập nhật danh sách phòng:', data);
+      setRooms(data || []);
+    });
+
+    // Tạo phòng thành công
+    socketRef.current.on('room_created_success', (data) => {
+      console.log('✅ Room created:', data);
       setGameState(prev => ({
         ...prev,
         roomId: data.room_id,
         playerSymbol: data.player_symbol,
-        players: data.players
+        players: data.players || []
       }));
+      setShowCreateModal(false);
+      setCreateRoomName('');
+      setCreateRoomPassword('');
       addMessage(`Đã tạo phòng: ${data.room_id}`);
     });
 
-    socketRef.current.on('room_joined', (data) => {
-      console.log('Received room_joined event:', data);
-      setGameState(prev => {
-        console.log('Setting roomId to:', data.room_id);
-        return {
-          ...prev,
-          roomId: data.room_id,
-          playerSymbol: data.player_symbol,
-          players: data.players
-        };
-      });
+    // Join phòng thành công
+    socketRef.current.on('join_success', (data) => {
+      console.log('✅ Join success:', data);
+      setGameState(prev => ({
+        ...prev,
+        roomId: data.room_id,
+        playerSymbol: data.player_symbol,
+        players: data.players || []
+      }));
+      setShowPasswordModal(false);
+      setJoinPassword('');
+      setSelectedRoom(null);
       addMessage(`Đã tham gia phòng: ${data.room_id}`);
+    });
+
+    socketRef.current.on('join_fail', (data) => {
+      alert(`Lỗi: ${data.message}`);
+      setShowPasswordModal(false);
+      setJoinPassword('');
     });
 
     socketRef.current.on('player_joined', (data) => {
       setGameState(prev => ({
         ...prev,
-        players: data.players
+        players: data.players || prev.players
       }));
-      addMessage(`Người chơi ${data.player_symbol} đã tham gia`);
-    });
-
-    socketRef.current.on('ready_to_start', (data) => {
-      console.log('Received ready_to_start event:', data);
-      setGameState(prev => ({
-        ...prev,
-        players: data.players,
-        gameStatus: 'ready'
-      }));
-      addMessage('Đủ 2 người chơi! Sẵn sàng bắt đầu game');
+      addMessage(`Người chơi mới đã tham gia`);
     });
 
     socketRef.current.on('game_started', (data) => {
-      console.log('Received game_started event:', data);
-      console.log('Current gameState:', gameState);
-      setGameState(prev => {
-        console.log('Previous gameState:', prev);
-        return {
-          ...prev,
-          board: data.board,
-          currentPlayer: data.current_player,
-          gameStatus: 'playing'
-        };
-      });
+      console.log('🎮 Game started:', data);
+      setGameState(prev => ({
+        ...prev,
+        board: data.board,
+        currentPlayer: data.current_player,
+        gameStatus: 'playing',
+        players: data.players || prev.players
+      }));
       addMessage('Game đã bắt đầu!');
     });
 
@@ -115,14 +136,35 @@ function GameOnline() {
       setGameState(prev => ({
         ...prev,
         board: data.board,
-        currentPlayer: data.current_player,
-        gameStatus: data.game_status,
+        currentPlayer: data.current_player
+      }));
+    });
+
+    socketRef.current.on('game_over', (data) => {
+      setGameState(prev => ({
+        ...prev,
+        gameStatus: 'finished',
         winner: data.winner
       }));
+      addMessage(`Game kết thúc! Người thắng: ${data.winner}`);
+    });
 
-      if (data.game_status === 'finished') {
-        addMessage(`Game kết thúc! Người thắng: ${data.winner}`);
-      }
+    socketRef.current.on('move_timeout', (data) => {
+      setGameState(prev => ({
+        ...prev,
+        gameStatus: 'finished',
+        winner: data.winner
+      }));
+      addMessage(data.message);
+    });
+
+    socketRef.current.on('surrender_result', (data) => {
+      setGameState(prev => ({
+        ...prev,
+        gameStatus: 'finished',
+        winner: data.winner
+      }));
+      addMessage(data.message);
     });
 
     socketRef.current.on('game_reset', (data) => {
@@ -137,11 +179,18 @@ function GameOnline() {
     });
 
     socketRef.current.on('player_left', (data) => {
-      addMessage(data.message);
+      addMessage(data.message || 'Đối thủ đã rời khỏi phòng');
+      // Nếu đang chơi và đối thủ rời, reset về waiting
+      setGameState(prev => ({
+        ...prev,
+        gameStatus: 'waiting',
+        players: data.players || prev.players
+      }));
     });
 
     socketRef.current.on('error', (data) => {
       addMessage(`Lỗi: ${data.message}`);
+      alert(`Lỗi: ${data.message}`);
     });
 
     return () => {
@@ -156,28 +205,38 @@ function GameOnline() {
   };
 
   const handleCreateRoom = () => {
-    if (!playerName.trim()) {
-      alert('Vui lòng nhập tên người chơi');
+    if (!createRoomName.trim()) {
+      alert('Vui lòng nhập tên phòng');
       return;
     }
-    socketRef.current.emit('create_room', { player_name: playerName });
-  };
-
-  const handleJoinRoom = () => {
-    if (!playerName.trim() || !roomCode.trim()) {
-      alert('Vui lòng nhập tên người chơi và mã phòng');
-      return;
-    }
-    socketRef.current.emit('join_room', {
-      room_id: roomCode,
+    socketRef.current.emit('create_room_request', {
+      name: createRoomName,
+      password: createRoomPassword.trim() || null,
       player_name: playerName
     });
   };
 
-  const handleStartGame = () => {
-    if (gameState.roomId) {
-      socketRef.current.emit('start_game', { room_id: gameState.roomId });
+  const handleJoinRoom = (room) => {
+    setSelectedRoom(room);
+    if (room.has_password) {
+      setShowPasswordModal(true);
+    } else {
+      // Join ngay không cần password
+      socketRef.current.emit('join_room_request', {
+        room_id: room.id,
+        player_name: playerName,
+        password: null
+      });
     }
+  };
+
+  const handleConfirmJoin = () => {
+    if (!selectedRoom) return;
+    socketRef.current.emit('join_room_request', {
+      room_id: selectedRoom.id,
+      player_name: playerName,
+      password: joinPassword
+    });
   };
 
   const handleClick = (row, col) => {
@@ -200,13 +259,35 @@ function GameOnline() {
     }
   };
 
+  const handleSurrender = () => {
+    if (gameState.roomId && window.confirm('Bạn có chắc chắn muốn đầu hàng?')) {
+      socketRef.current.emit('surrender', { room_id: gameState.roomId });
+    }
+  };
+
   const handleLeaveRoom = () => {
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
+    // Reset state
+    setGameState({
+      roomId: '',
+      playerSymbol: '',
+      board: Array(20).fill().map(() => Array(20).fill(null)),
+      currentPlayer: 'X',
+      players: [],
+      gameStatus: 'waiting',
+      winner: null,
+      isConnected: true
+    });
     navigate('/home');
   };
 
+  const handleOpponentLeft = (data) => {
+    addMessage(data.message);
+  };
+
+  // Màn hình loading
   if (!gameState.isConnected) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
@@ -218,194 +299,78 @@ function GameOnline() {
     );
   }
 
+  // Màn hình danh sách phòng
   if (!gameState.roomId) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-lg w-96">
-          <h1 className="text-2xl font-bold mb-6 text-center">Caro Online</h1>
+      <>
+        <RoomList 
+          rooms={rooms}
+          onJoinRoom={handleJoinRoom}
+          onCreateRoom={() => setShowCreateModal(true)}
+        />
+        
+        <CreateRoomModal
+          show={showCreateModal}
+          roomName={createRoomName}
+          password={createRoomPassword}
+          onRoomNameChange={setCreateRoomName}
+          onPasswordChange={setCreateRoomPassword}
+          onCreate={handleCreateRoom}
+          onCancel={() => {
+            setShowCreateModal(false);
+            setCreateRoomName('');
+            setCreateRoomPassword('');
+          }}
+        />
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Tên người chơi:</label>
-            <input
-              type="text"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Nhập tên của bạn"
-            />
-          </div>
-
-          <div className="space-y-3">
-            <button
-              onClick={handleCreateRoom}
-              className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition"
-            >
-              Tạo phòng mới
-            </button>
-
-            <button
-              onClick={() => setShowRoomInput(!showRoomInput)}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition"
-            >
-              Tham gia phòng
-            </button>
-
-            {showRoomInput && (
-              <div className="mt-4">
-                <input
-                  type="text"
-                  value={roomCode}
-                  onChange={(e) => setRoomCode(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
-                  placeholder="Nhập mã phòng"
-                />
-                <button
-                  onClick={handleJoinRoom}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition"
-                >
-                  Tham gia
-                </button>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={() => navigate('/home')}
-            className="w-full mt-4 bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 transition"
-          >
-            Quay lại
-          </button>
-        </div>
-      </div>
+        <PasswordModal
+          show={showPasswordModal}
+          roomName={selectedRoom?.name}
+          password={joinPassword}
+          onPasswordChange={setJoinPassword}
+          onConfirm={handleConfirmJoin}
+          onCancel={() => {
+            setShowPasswordModal(false);
+            setJoinPassword('');
+            setSelectedRoom(null);
+          }}
+        />
+      </>
     );
   }
 
-  if (gameState.gameStatus === 'ready') {
+  // Màn hình phòng chờ (waiting)
+  if (gameState.gameStatus === 'waiting') {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-lg w-96 text-center">
-          <h1 className="text-2xl font-bold mb-6">Sẵn sàng bắt đầu!</h1>
-
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-4">Người chơi trong phòng:</h3>
-            {gameState.players.map((player, index) => (
-              <div key={index} className="flex items-center justify-center gap-2 mb-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${player.symbol === 'X' ? 'bg-red-500' : 'bg-blue-500'
-                  }`}>
-                  {player.symbol}
-                </div>
-                <span>{player.name}</span>
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={handleStartGame}
-            className="w-full bg-green-600 text-white py-3 px-4 rounded hover:bg-green-700 transition text-lg font-semibold"
-          >
-            BẮT ĐẦU GAME
-          </button>
-
-          <button
-            onClick={handleLeaveRoom}
-            className="w-full mt-3 bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 transition"
-          >
-            Rời phòng
-          </button>
-        </div>
-      </div>
+      <WaitingRoom
+        roomId={gameState.roomId}
+        players={gameState.players}
+        playerSymbol={gameState.playerSymbol}
+        socket={socketRef.current}
+        onLeave={handleLeaveRoom}
+        onOpponentLeft={handleOpponentLeft}
+      />
     );
   }
 
+  // Màn hình bàn cờ (playing hoặc finished)
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="w-full max-w-4xl">
-        {/* Header */}
-        <div className="bg-white shadow-lg rounded-lg p-4 mb-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Caro Online</h1>
-            <div className="flex items-center gap-4">
-              <span className="text-sm">Phòng: <strong>{gameState.roomId}</strong></span>
-              <span className="text-sm">Bạn là: <strong>{gameState.playerSymbol}</strong></span>
-              <button
-                onClick={handleLeaveRoom}
-                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition"
-              >
-                Rời phòng
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-4">
-          {/* Game Area */}
-          <div className="flex-1">
-            {/* Player Info */}
-            <div className="bg-white shadow-lg rounded-lg p-4 mb-4">
-              <div className="flex justify-between items-center">
-                {gameState.players.map((player, index) => (
-                  <div key={index} className="flex flex-col items-center">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold ${player.symbol === 'X' ? 'bg-red-500' : 'bg-blue-500'
-                      }`}>
-                      {player.symbol}
-                    </div>
-                    <span className="text-sm mt-1">{player.name}</span>
-                    {gameState.currentPlayer === player.symbol && gameState.gameStatus === 'playing' && (
-                      <div className="w-2 h-2 bg-green-500 rounded-full mt-1"></div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Game Status */}
-            <Status
-              xIsNext={gameState.currentPlayer === 'X'}
-              winner={gameState.winner}
-            />
-
-            {/* Board */}
-            <div className="bg-white shadow-lg rounded-lg p-4 mb-4">
-              <Board board={gameState.board} onClick={handleClick} />
-            </div>
-
-            {/* Game Controls */}
-            <div className="flex gap-2 justify-center">
-              <button
-                onClick={handleResetGame}
-                className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 transition"
-                disabled={gameState.gameStatus !== 'playing'}
-              >
-                Chơi lại
-              </button>
-            </div>
-          </div>
-
-          {/* Chat/Log Area */}
-          <div className="w-80">
-            {/* Chat Box */}
-            <div className="w-80">
-              <ChatBox
-                socket={socketRef.current}
-                roomId={gameState.roomId}
-                player={playerName || gameState.playerSymbol}
-              />
-            </div>
-
-            <div className="bg-white shadow-lg rounded-lg p-4 h-96 flex flex-col">
-              <h3 className="font-bold mb-2">Thông báo</h3>
-              <div className="flex-1 overflow-y-auto space-y-1">
-                {messages.map((msg, index) => (
-                  <div key={index} className="text-sm">
-                    <span className="text-gray-500">[{msg.time}]</span> {msg.text}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <GameBoard
+        roomId={gameState.roomId}
+        playerSymbol={gameState.playerSymbol}
+        players={gameState.players}
+        board={gameState.board}
+        currentPlayer={gameState.currentPlayer}
+        winner={gameState.winner}
+        gameStatus={gameState.gameStatus}
+        messages={messages}
+        onCellClick={handleClick}
+      
+        onSurrender={handleSurrender}
+        onLeaveRoom={handleLeaveRoom}
+        socket={socketRef.current}
+        playerName={playerName}
+      />
   );
 }
 
