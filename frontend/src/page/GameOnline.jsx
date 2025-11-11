@@ -18,8 +18,8 @@ function GameOnline() {
     playerSymbol: '',
     board: Array(20).fill().map(() => Array(20).fill(null)),
     currentPlayer: 'X',
-    players: [],
     gameStatus: 'waiting', // waiting, playing, finished
+    players: [],
     winner: null,
     isConnected: false
   });
@@ -36,54 +36,71 @@ function GameOnline() {
   const currentUser = JSON.parse(localStorage.getItem("currentUser"));
   const playerName = currentUser?.username || 'Player';
 
+  const addMessage = (message) => {
+    setMessages(prev => [...prev, { text: message, time: new Date().toLocaleTimeString() }]);
+  };
+
+  const handleReturnToWaitingRoom = () => {
+    setGameState(prev => ({
+      ...prev,
+      gameStatus: 'waiting',
+      board: Array(20).fill().map(() => Array(20).fill(null)),
+      winner: null,
+      currentPlayer: 'X'
+    }));
+    if (socketRef.current) {
+      socketRef.current.emit('get_rooms');
+    }
+    addMessage('Trở về phòng chờ. Có thể bắt đầu game mới.');
+  };
+
   useEffect(() => {
-    // Kết nối tới server
     const serverUrl = 'http://localhost:5001';
     console.log('Connecting to server:', serverUrl);
-    socketRef.current = io(serverUrl, {
+    
+    // Khởi tạo socket
+    const socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 20000,
       forceNew: true
     });
+    socketRef.current = socket; // Gán vào ref
 
-    socketRef.current.on('connect', () => {
+    socket.on('connect', () => {
       console.log('✅ Connected to server successfully!');
       setGameState(prev => ({ ...prev, isConnected: true }));
       addMessage('Đã kết nối tới server');
-      // Yêu cầu danh sách phòng
-      socketRef.current.emit('get_rooms');
+      socket.emit('get_rooms');
     });
 
-    socketRef.current.on('disconnect', () => {
+    socket.on('disconnect', () => {
       console.log('❌ Disconnected from server');
-      setGameState(prev => ({ ...prev, isConnected: false }));
+      setGameState(prev => ({ ...prev, isConnected: false, roomId: '', players: [] }));
       addMessage('Mất kết nối với server');
     });
 
-    socketRef.current.on('connect_error', (error) => {
+    socket.on('connect_error', (error) => {
       console.error('❌ Connection error:', error);
       addMessage(`Lỗi kết nối: ${error.message}`);
     });
 
-    // Nhận danh sách phòng
-    socketRef.current.on('rooms_list', (data) => {
-      console.log('📦 Danh sách phòng:', data.rooms);
+    socket.on('rooms_list', (data) => {
       setRooms(data.rooms || []);
     });
 
-    socketRef.current.on('rooms_list_update', (data) => {
-      console.log('🔄 Cập nhật danh sách phòng:', data);
+    socket.on('rooms_list_update', (data) => {
       setRooms(data || []);
     });
 
-    // Tạo phòng thành công
-    socketRef.current.on('room_created_success', (data) => {
-      console.log('✅ Room created:', data);
+    // ✅ CHỈNH SỬA: Tạo phòng thành công
+    socket.on('room_created_success', (data) => {
       setGameState(prev => ({
         ...prev,
-        roomId: data.room_id,
+        roomId: data.room_id,         // Cập nhật roomId
         playerSymbol: data.player_symbol,
-        players: data.players || []
+        players: data.players || [],
+        gameStatus: 'waiting',        // Đảm bảo set waiting
+        currentPlayer: data.current_player || 'X'
       }));
       setShowCreateModal(false);
       setCreateRoomName('');
@@ -91,14 +108,15 @@ function GameOnline() {
       addMessage(`Đã tạo phòng: ${data.room_id}`);
     });
 
-    // Join phòng thành công
-    socketRef.current.on('join_success', (data) => {
-      console.log('✅ Join success:', data);
+    // ✅ CHỈNH SỬA: Join phòng thành công
+    socket.on('join_success', (data) => {
       setGameState(prev => ({
         ...prev,
-        roomId: data.room_id,
+        roomId: data.room_id,         // Cập nhật roomId
         playerSymbol: data.player_symbol,
-        players: data.players || []
+        players: data.players || [],
+        gameStatus: 'waiting',        // Đảm bảo set waiting
+        currentPlayer: data.current_player || 'X'
       }));
       setShowPasswordModal(false);
       setJoinPassword('');
@@ -106,13 +124,13 @@ function GameOnline() {
       addMessage(`Đã tham gia phòng: ${data.room_id}`);
     });
 
-    socketRef.current.on('join_fail', (data) => {
+    socket.on('join_fail', (data) => {
       alert(`Lỗi: ${data.message}`);
       setShowPasswordModal(false);
       setJoinPassword('');
     });
 
-    socketRef.current.on('player_joined', (data) => {
+    socket.on('player_joined', (data) => {
       setGameState(prev => ({
         ...prev,
         players: data.players || prev.players
@@ -120,8 +138,7 @@ function GameOnline() {
       addMessage(`Người chơi mới đã tham gia`);
     });
 
-    socketRef.current.on('game_started', (data) => {
-      console.log('🎮 Game started:', data);
+    socket.on('game_started', (data) => {
       setGameState(prev => ({
         ...prev,
         board: data.board,
@@ -132,7 +149,7 @@ function GameOnline() {
       addMessage('Game đã bắt đầu!');
     });
 
-    socketRef.current.on('move_made', (data) => {
+    socket.on('move_made', (data) => {
       setGameState(prev => ({
         ...prev,
         board: data.board,
@@ -140,7 +157,7 @@ function GameOnline() {
       }));
     });
 
-    socketRef.current.on('game_over', (data) => {
+    socket.on('game_over', (data) => {
       setGameState(prev => ({
         ...prev,
         gameStatus: 'finished',
@@ -149,7 +166,7 @@ function GameOnline() {
       addMessage(`Game kết thúc! Người thắng: ${data.winner}`);
     });
 
-    socketRef.current.on('move_timeout', (data) => {
+    socket.on('move_timeout', (data) => {
       setGameState(prev => ({
         ...prev,
         gameStatus: 'finished',
@@ -158,7 +175,7 @@ function GameOnline() {
       addMessage(data.message);
     });
 
-    socketRef.current.on('surrender_result', (data) => {
+    socket.on('surrender_result', (data) => {
       setGameState(prev => ({
         ...prev,
         gameStatus: 'finished',
@@ -167,7 +184,7 @@ function GameOnline() {
       addMessage(data.message);
     });
 
-    socketRef.current.on('game_reset', (data) => {
+    socket.on('game_reset', (data) => {
       setGameState(prev => ({
         ...prev,
         board: data.board,
@@ -177,10 +194,9 @@ function GameOnline() {
       }));
       addMessage('Game đã được reset');
     });
-
-    socketRef.current.on('player_left', (data) => {
+    
+    socket.on('player_left', (data) => {
       addMessage(data.message || 'Đối thủ đã rời khỏi phòng');
-      // Nếu đang chơi và đối thủ rời, reset về waiting
       setGameState(prev => ({
         ...prev,
         gameStatus: 'waiting',
@@ -188,32 +204,42 @@ function GameOnline() {
       }));
     });
 
-    socketRef.current.on('error', (data) => {
+    socket.on('error', (data) => {
       addMessage(`Lỗi: ${data.message}`);
       alert(`Lỗi: ${data.message}`);
     });
 
     return () => {
+      // Logic cleanup: Disconnect socket và gửi leave_room
       if (socketRef.current) {
+        // Chỉ gửi leave_room nếu đã có roomId
+        if (gameState.roomId && socketRef.current.connected) {
+             socketRef.current.emit('leave_room', { room_id: gameState.roomId });
+        }
         socketRef.current.disconnect();
       }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // useEffect này chỉ chạy một lần khi component mount
 
-  const addMessage = (message) => {
-    setMessages(prev => [...prev, { text: message, time: new Date().toLocaleTimeString() }]);
-  };
+  // ----------------------------------------------------------------------------------
+  // CÁC HÀM XỬ LÝ KHÁC
+  // ----------------------------------------------------------------------------------
 
   const handleCreateRoom = () => {
     if (!createRoomName.trim()) {
       alert('Vui lòng nhập tên phòng');
       return;
     }
-    socketRef.current.emit('create_room_request', {
-      name: createRoomName,
-      password: createRoomPassword.trim() || null,
-      player_name: playerName
-    });
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.emit('create_room_request', {
+        name: createRoomName,
+        password: createRoomPassword.trim() || null,
+        player_name: playerName
+      });
+    } else {
+        alert('Chưa kết nối tới server. Vui lòng thử lại.');
+    }
   };
 
   const handleJoinRoom = (room) => {
@@ -221,54 +247,68 @@ function GameOnline() {
     if (room.has_password) {
       setShowPasswordModal(true);
     } else {
-      // Join ngay không cần password
-      socketRef.current.emit('join_room_request', {
-        room_id: room.id,
-        player_name: playerName,
-        password: null
-      });
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('join_room_request', {
+          room_id: room.id,
+          player_name: playerName,
+          password: null
+        });
+      }
     }
   };
 
   const handleConfirmJoin = () => {
     if (!selectedRoom) return;
-    socketRef.current.emit('join_room_request', {
-      room_id: selectedRoom.id,
-      player_name: playerName,
-      password: joinPassword
-    });
+    if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('join_room_request', {
+          room_id: selectedRoom.id,
+          player_name: playerName,
+          password: joinPassword
+        });
+    }
   };
 
   const handleClick = (row, col) => {
     if (gameState.gameStatus !== 'playing' ||
       gameState.board[row][col] ||
       gameState.currentPlayer !== gameState.playerSymbol) {
+      // console.log('Không thể đánh:', {
+      //     status: gameState.gameStatus, 
+      //     cell: gameState.board[row][col], 
+      //     isMyTurn: gameState.currentPlayer === gameState.playerSymbol
+      // });
       return;
     }
 
-    socketRef.current.emit('make_move', {
-      room_id: gameState.roomId,
-      row: row,
-      col: col
-    });
-  };
-
-  const handleResetGame = () => {
-    if (gameState.roomId) {
-      socketRef.current.emit('reset_game', { room_id: gameState.roomId });
+    if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('make_move', {
+          room_id: gameState.roomId,
+          row: row,
+          col: col
+        });
     }
   };
 
   const handleSurrender = () => {
-    if (gameState.roomId && window.confirm('Bạn có chắc chắn muốn đầu hàng?')) {
-      socketRef.current.emit('surrender', { room_id: gameState.roomId });
+    if (gameState.roomId && gameState.gameStatus === 'playing' && window.confirm('Bạn có chắc chắn muốn đầu hàng?')) {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('surrender', { room_id: gameState.roomId });
+      }
     }
   };
 
+  // KHÔNG CẦN HÀM handleResetGame ở đây vì nó không được dùng trong render
+  // const handleResetGame = () => { ... } 
+  
   const handleLeaveRoom = () => {
+    // Gửi lệnh leave room và ngắt kết nối
     if (socketRef.current) {
+      if (gameState.roomId && socketRef.current.connected) {
+        socketRef.current.emit('leave_room', { room_id: gameState.roomId });
+      }
       socketRef.current.disconnect();
     }
+    
     // Reset state
     setGameState({
       roomId: '',
@@ -278,17 +318,19 @@ function GameOnline() {
       players: [],
       gameStatus: 'waiting',
       winner: null,
-      isConnected: true
+      isConnected: false
     });
+    
+    // Chuyển hướng
     navigate('/home');
   };
 
-  const handleOpponentLeft = (data) => {
-    addMessage(data.message);
-  };
+  // ----------------------------------------------------------------------------------
+  // LOGIC RENDER
+  // ----------------------------------------------------------------------------------
 
-  // Màn hình loading
-  if (!gameState.isConnected) {
+  // 1. Màn hình loading
+  if (!gameState.isConnected && !gameState.roomId) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="text-center">
@@ -299,7 +341,7 @@ function GameOnline() {
     );
   }
 
-  // Màn hình danh sách phòng
+  // 2. Màn hình danh sách phòng (khi chưa có roomId)
   if (!gameState.roomId) {
     return (
       <>
@@ -339,7 +381,7 @@ function GameOnline() {
     );
   }
 
-  // Màn hình phòng chờ (waiting)
+  // 3. Màn hình phòng chờ (khi có roomId và gameStatus là 'waiting')
   if (gameState.gameStatus === 'waiting') {
     return (
       <WaitingRoom
@@ -348,12 +390,11 @@ function GameOnline() {
         playerSymbol={gameState.playerSymbol}
         socket={socketRef.current}
         onLeave={handleLeaveRoom}
-        onOpponentLeft={handleOpponentLeft}
       />
     );
   }
 
-  // Màn hình bàn cờ (playing hoặc finished)
+  // 4. Màn hình bàn cờ (playing HOẶC finished)
   return (
       <GameBoard
         roomId={gameState.roomId}
@@ -370,6 +411,7 @@ function GameOnline() {
         onLeaveRoom={handleLeaveRoom}
         socket={socketRef.current}
         playerName={playerName}
+        onReturnToWaiting={handleReturnToWaitingRoom}
       />
   );
 }
