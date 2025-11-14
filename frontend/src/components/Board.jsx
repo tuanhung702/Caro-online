@@ -19,9 +19,9 @@ function Board({ board, onClick }) {
             <span
               className={
                 cell === "X"
-                  ? "text-blue-600" 
+                  ? "text-blue-600"
                   : cell === "O"
-                  ? "text-red-600" 
+                  ? "text-red-600"
                   : ""
               }
             >

@@ -59,7 +59,7 @@ class GameRoom:
             self.start_move_timer()
             return True
         return False
-    
+
     def start_move_timer(self, timeout=30):
         """Bắt đầu timer 30 giây cho lượt đi hiện tại."""
         self.stop_move_timer()
