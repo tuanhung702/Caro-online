@@ -2,8 +2,9 @@ from flask import request
 from flask_socketio import emit
 from states.room_manager import room_manager 
 from socketio_instance import socketio
-from .room_events import parse_data 
-# -------------------------------------------------------------------------
+from .room_events import parse_data
+from utils.match_service import save_match_result
+import json
 
 @socketio.on('make_move')
 def handle_make_move(data):
@@ -59,6 +60,18 @@ def handle_make_move(data):
             winner_player = next((p for p in room.players if p['symbol'] == room.winner), None)
             loser_player = next((p for p in room.players if p['symbol'] != room.winner), None)
             
+            # 💾 Lưu kết quả match vào database
+            if winner_player and loser_player:
+                match_result = save_match_result(
+                    winner_user_id=winner_player['id'],
+                    loser_user_id=loser_player['id'],
+                    elo_change_winner=16,
+                    elo_change_loser=-16,
+                    final_board_state=room.board,
+                    match_duration=None
+                )
+                print(f"✅ Match saved: {match_result}")
+            
             socketio.emit('game_over', {
                 'winner': room.winner,
                 'winner_name': winner_player['name'] if winner_player else room.winner,
@@ -106,6 +119,18 @@ def handle_surrender(data):
         if success:
             winner = next((p for p in room.players if p['symbol'] == winner_symbol), None)
             loser = next((p for p in room.players if p['symbol'] == loser_symbol), None)
+            
+            # 💾 Lưu kết quả match vào database
+            if winner and loser:
+                match_result = save_match_result(
+                    winner_user_id=winner['id'],
+                    loser_user_id=loser['id'],
+                    elo_change_winner=16,
+                    elo_change_loser=-16,
+                    final_board_state=room.board,
+                    match_duration=None
+                )
+                print(f"✅ Surrender match saved: {match_result}")
             
             socketio.emit('surrender_result', {
                 'winner': winner_symbol,

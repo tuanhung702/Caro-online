@@ -2,6 +2,7 @@
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- Nạp file .env ---
 load_dotenv()
@@ -19,66 +20,117 @@ if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
 # --- KẾT NỐI SUPABASE ---
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-# --- 1. HÀM ĐĂNG NHẬP (SỬA ĐỔI) ---
-# BỎ TRUY VẤN BẢNG PROFILES
+# Ghi chú: Sử dụng SERVICE_KEY để bypass RLS (Row Level Security)
+# Điều này cần thiết vì backend cần toàn quyền truy cập database
+# Chỉ sử dụng anon key trên frontend với RLS bật
+
+# --- 1. HÀM ĐĂNG NHẬP ---
 def authenticate_user(email: str, password: str):
-    """Xác thực người dùng bằng Supabase Auth."""
+    """Authenticate against `Users` table.
+
+    Returns a dict with either {success: True, user_id, username, email}
+    or {success: False, message}.
+    """
     try:
-        response = supabase.auth.sign_in_with_password({
-            "email": email,
-            "password": password
-        })
-        
-        if response.user and response.session:
-            # XÓA: Lấy username từ bảng Profiles
-            # profile_res = supabase.table('Profiles').select('username').eq('user_id', response.user.id).execute()
-            # username = profile_res.data[0]['username'] if profile_res.data else "Player"
-            
-            return {
-                "success": True, 
-                "access_token": response.session.access_token,
-                "user_id": response.user.id,
-                # XÓA: username
-            }
-        else:
-            return {"success": False, "message": "Thông tin đăng nhập không hợp lệ."}
+        resp = supabase.table('Users').select('user_id, password_hash').eq('email', email).execute()
+        if not resp.data:
+            return {"success": False, "message": "Email hoặc mật khẩu không chính xác."}
+
+        user = resp.data[0]
+        stored_hash = user.get('password_hash')
+        if not stored_hash or not check_password_hash(stored_hash, password):
+            return {"success": False, "message": "Email hoặc mật khẩu không chính xác."}
+
+        user_id = user.get('user_id')
+
+        # fetch username from Profiles
+        try:
+            profile = supabase.table('Profiles').select('username').eq('user_id', user_id).execute()
+            username = profile.data[0]['username'] if profile.data else email.split('@')[0]
+        except Exception:
+            username = email.split('@')[0]
+
+        return {"success": True, "user_id": user_id, "username": username, "email": email}
 
     except Exception as e:
-        print("❌ Lỗi đăng nhập:", e)
-        return {"success": False, "message": "Email hoặc mật khẩu không chính xác."}
+        print(f"❌ authenticate_user error: {e}")
+        return {"success": False, "message": "Lỗi khi xác thực người dùng."}
 
 
-# --- 2. HÀM ĐĂNG KÝ (SỬA ĐỔI) ---
-# BỎ THAM SỐ username VÀ LOGIC TẠO BẢNG PROFILES
-def register_new_user(email: str, password: str): # <--- BỎ username: str
-    """Đăng ký người dùng mới."""
+# --- 2. HÀM ĐĂNG KÝ ---
+def register_new_user(email: str, password: str, username: str):
+    """Register a new user into `Users` and `Profiles`.
+
+    Returns {success: True, message} or {success: False, message}.
+    """
     try:
-        auth_response = supabase.auth.sign_up({
-            "email": email, 
-            "password": password
-        })
-
-        if auth_response.user:
-            # XÓA: Logic tạo profile
-            # user_id = auth_response.user.id
-            # profile_data = {
-            #     "user_id": user_id,
-            #     "username": username,
-            #     "elo_score": 1000,
-            #     "total_wins": 0,
-            #     "total_losses": 0
-            # }
-            # supabase.table('Profiles').insert(profile_data).execute()
-            
-            return {"success": True, "message": "Đăng ký thành công! Vui lòng kiểm tra email xác thực."}
-        
-        raise Exception(auth_response.error.message if auth_response.error else "Lỗi đăng ký không xác định")
-
-    except Exception as e:
-        error_message = str(e)
-        if "User already registered" in error_message:
+        # check existing email
+        exists = supabase.table('Users').select('user_id').eq('email', email).execute()
+        if exists.data:
             return {"success": False, "message": "Email đã được sử dụng."}
-        # XÓA: Điều kiện kiểm tra tên người dùng
-        # if "duplicate key value violates unique constraint" in error_message:
-        #     return {"success": False, "message": "Tên người dùng đã tồn tại."}
-        return {"success": False, "message": f"Lỗi đăng ký: {error_message}"}
+
+        # create hashed password
+        pw_hash = generate_password_hash(password)
+
+        # insert into Users
+        user_res = supabase.table('Users').insert({
+            'email': email,
+            'password_hash': pw_hash
+        }).execute()
+
+        if not user_res.data:
+            return {"success": False, "message": "Không thể tạo người dùng."}
+
+        user_id = user_res.data[0].get('user_id')
+
+        # create profile
+        profile_data = {
+            'user_id': user_id,
+            'username': username,
+            'elo_score': 1000,
+            'total_wins': 0,
+            'total_losses': 0
+        }
+
+        try:
+            supabase.table('Profiles').insert(profile_data).execute()
+        except Exception as profile_err:
+            print(f"⚠️ profile create warning: {profile_err}")
+            # attempt to rollback user creation
+            try:
+                supabase.table('Users').delete().eq('user_id', user_id).execute()
+            except Exception:
+                pass
+            return {"success": False, "message": "Lỗi khi tạo profile."}
+
+        return {"success": True, "message": "Đăng ký thành công."}
+
+    except Exception as e:
+        err = str(e)
+        print(f"❌ register_new_user error: {err}")
+        if 'unique' in err.lower() or 'duplicate' in err.lower():
+            return {"success": False, "message": "Tên người dùng hoặc email đã tồn tại."}
+        return {"success": False, "message": f"Lỗi đăng ký: {err}"}
+
+
+# --- 3. HÀM CẬP NHẬT PROFILE ---
+def update_user_profile(user_id: int, username: str = None, password: str = None, email: str = None):
+    """Update user profile (username, password in Users table, email).
+
+    Returns {success: True, message} or {success: False, message}.
+    """
+    try:
+        # Update username in Profiles if provided
+        if username:
+            supabase.table('Profiles').update({'username': username}).eq('user_id', user_id).execute()
+
+        # Update password in Users if provided
+        if password:
+            pw_hash = generate_password_hash(password)
+            supabase.table('Users').update({'password_hash': pw_hash}).eq('user_id', user_id).execute()
+
+        return {"success": True, "message": "Cập nhật profile thành công."}
+
+    except Exception as e:
+        print(f"❌ update_user_profile error: {e}")
+        return {"success": False, "message": f"Lỗi cập nhật profile: {str(e)}"}

@@ -4,6 +4,9 @@ import Register from "./page/Register";
 import GameOnline from "./page/GameOnline";
 import GameOffline from "./page/GameOffline";
 import Home from "./page/Home";
+import Profile from "./page/Profile";
+import Rank from "./page/Rank";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
@@ -19,9 +22,46 @@ function App() {
         <Route path="/register" element={<Register />} />
        
         {/* Trang chơi game */}
-        <Route path="/home" element={<Home />} />
-        <Route path="/gameOffline" element={<GameOffline />} />
-        <Route path="/gameonline" element={<GameOnline />} />
+        <Route
+          path="/home"
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gameOffline"
+          element={
+            <ProtectedRoute>
+              <GameOffline />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gameonline"
+          element={
+            <ProtectedRoute>
+              <GameOnline />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rank"
+          element={
+            <ProtectedRoute>
+              <Rank />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </Router>
   );

@@ -1,8 +1,7 @@
 // File: src/page/Login.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const BACKEND_URL = "http://localhost:5001"; // Cổng backend Flask
+import { BACKEND_URL } from "../config/api";
 
 function Login() {
   const navigate = useNavigate();
@@ -29,15 +28,16 @@ function Login() {
         data = {};
       }
 
-      if (!response.ok) {
-        setError(data.message || "Lỗi đăng nhập không xác định.");
+      // Backend trả về { success: True/False, message, user_id, username, email }
+      if (!data || data.success === false) {
+        setError((data && data.message) || "Lỗi đăng nhập không xác định.");
         return;
       }
 
       // ✅ Lưu thông tin người dùng
-      localStorage.setItem("authToken", data.access_token);
       localStorage.setItem("userId", data.user_id);
       localStorage.setItem("username", data.username);
+      localStorage.setItem("email", data.email);
 
       navigate("/home");
     } catch (err) {

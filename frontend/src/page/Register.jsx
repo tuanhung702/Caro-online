@@ -1,8 +1,7 @@
 // File: src/page/Register.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const BACKEND_URL = "http://localhost:5001";
+import { BACKEND_URL } from "../config/api";
 
 function Register() {
   const navigate = useNavigate();
@@ -17,8 +16,8 @@ function Register() {
     setSuccess("");
     setLoading(true);
 
-    if (!form.email || !form.password || !form.username) {
-      setError("Vui lòng nhập đầy đủ Tên người dùng, Email và Mật khẩu!");
+    if (!form.username || !form.email || !form.password) {
+      setError("Vui lòng nhập đầy đủ Tên, Email và Mật khẩu!");
       setLoading(false);
       return;
     }
@@ -32,15 +31,17 @@ function Register() {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        setError(data.message || "Lỗi đăng ký không xác định.");
+      // Backend trả về { success: True/False, message }
+      if (!data || data.success === false) {
+        setError((data && data.message) || "Lỗi đăng ký không xác định.");
+        setLoading(false);
         return;
       }
 
-      setSuccess(
-        data.message || "Đăng ký thành công! Bạn có thể đăng nhập ngay."
-      );
+      setSuccess(data.message || "Đăng ký thành công! Bạn sẽ được chuyển tới trang đăng nhập.");
       setForm({ username: "", email: "", password: "" }); // Xóa form
+      // Tự chuyển hướng sau 1.2s về trang đăng nhập
+      setTimeout(() => navigate("/login"), 1200);
     } catch (err) {
       console.error("Lỗi kết nối API:", err);
       setError("Không thể kết nối tới Backend.");
@@ -72,14 +73,12 @@ function Register() {
         <div className="mb-4">
           <input
             type="text"
-            placeholder="Tên người dùng"
-            className="w-full border border-gray-300 p-3 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150"
+            placeholder="Tên hiển thị (username)"
+            className="w-full border border-gray-300 p-3 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150 mb-3"
             value={form.username}
             onChange={(e) => setForm({ ...form, username: e.target.value })}
             required
           />
-        </div>
-        <div className="mb-4">
           <input
             type="email"
             placeholder="Email"

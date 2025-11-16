@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
+import { BACKEND_URL } from "../config/api";
 import RoomList from "../components/RoomList";
 import CreateRoomModal from "../components/CreateRoomModal";
 import PasswordModal from "../components/PasswordModal";
@@ -10,6 +11,9 @@ import GameBoard from "../components/GameBoard";
 function GameOnline() {
   const navigate = useNavigate();
   const socketRef = useRef(null);
+
+  const userId = localStorage.getItem("userId");
+  const playerName = localStorage.getItem("username") || "Player";
 
   const [gameState, setGameState] = useState({
     roomId: "",
@@ -21,6 +25,7 @@ function GameOnline() {
     gameStatus: "waiting",
     winner: null,
     isConnected: false,
+    players: [],
   });
 
   const [rooms, setRooms] = useState([]);
@@ -32,14 +37,47 @@ function GameOnline() {
   const [joinPassword, setJoinPassword] = useState("");
   const [messages, setMessages] = useState([]);
 
-  const currentUser = JSON.parse(localStorage.getItem("currentUser"));
-  const playerName = currentUser?.username || "Player";
-
   const addMessage = (message) => {
     setMessages((prev) => [
       ...prev,
       { text: message, time: new Date().toLocaleTimeString() },
     ]);
+  };
+
+  // Hàm lưu kết quả match vào database
+  const saveMatchResult = async (winnerName) => {
+    try {
+      const players = gameState.players || [];
+      const winner = players.find((p) => p.name === winnerName);
+      const loser = players.find((p) => p.name !== winnerName);
+
+      if (!winner || !loser) {
+        console.error("Không tìm thấy thông tin người chơi");
+        return;
+      }
+
+      const response = await fetch(`${BACKEND_URL}/api/match/save_result`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          winner_user_id: winner.user_id || userId,
+          loser_user_id: loser.user_id,
+          elo_change_winner: 50,
+          elo_change_loser: -50,
+          final_board_state: gameState.board,
+          match_duration: 300, // Tạm thời set 5 phút
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        console.log("✅ Match saved:", data);
+      } else {
+        console.error("Lỗi lưu match:", data.message);
+      }
+    } catch (err) {
+      console.error("Lỗi lưu kết quả match:", err);
+    }
   };
 
   const handleReturnToWaitingRoom = () => {
@@ -59,7 +97,7 @@ function GameOnline() {
   };
 
   useEffect(() => {
-    const serverUrl = "http://localhost:5001";
+    const serverUrl = BACKEND_URL;
 
     // Khởi tạo socket
     const socket = io(serverUrl, {
@@ -172,6 +210,11 @@ function GameOnline() {
         winner: data.winner,
       }));
       addMessage(`Game kết thúc! Người thắng: ${data.winner}`);
+      
+      // Lưu match result vào database
+      if (gameState.players && gameState.players.length >= 2) {
+        saveMatchResult(data.winner);
+      }
     });
 
     socket.on("move_timeout", (data) => {
@@ -190,6 +233,11 @@ function GameOnline() {
         winner: data.winner,
       }));
       addMessage(data.message);
+      
+      // Lưu match result vào database
+      if (gameState.players && gameState.players.length >= 2) {
+        saveMatchResult(data.winner);
+      }
     });
 
     socket.on("game_reset", (data) => {

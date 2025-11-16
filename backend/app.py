@@ -3,6 +3,7 @@ from socketio_instance import socketio
 
 from routes.room_routes import room_bp
 from routes.auth_routes import auth_bp  # Auth routes
+from routes.match_routes import match_bp  # Match history routes
 
 import sockets.room_events
 import sockets.game_events
@@ -19,6 +20,7 @@ socketio.init_app(app)
 # 🟢 Đăng ký blueprint
 app.register_blueprint(room_bp, url_prefix='/api')
 app.register_blueprint(auth_bp)  # Không cần url_prefix ở đây
+app.register_blueprint(match_bp)  # Match history routes
 
 @app.route('/')
 def index():

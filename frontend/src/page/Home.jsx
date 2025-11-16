@@ -6,20 +6,17 @@ export default function Home() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
 
-  // Lấy thông tin user từ localStorage khi trang load
   useEffect(() => {
-    const currentUser = JSON.parse(localStorage.getItem("currentUser"));
-    if (currentUser?.username) {
-      setUsername(currentUser.username);
-    } else {
-      // Nếu chưa đăng nhập -> quay về login
-      navigate("/login");
-    }
-  }, [navigate]);
+    const storedUsername = localStorage.getItem("username");
+    setUsername(storedUsername || "Guest");
+  }, []);
 
   // Hàm đăng xuất
   const handleLogout = () => {
-    localStorage.removeItem("currentUser");
+    localStorage.removeItem("username");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("email");
+    localStorage.removeItem("authToken");
     navigate("/login");
   };
 
@@ -29,13 +26,16 @@ export default function Home() {
       <header className="bg-blue-800 text-white px-6 py-3 flex justify-between items-center">
         <h1 className="text-xl font-semibold">Caro Online</h1>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("/profile")}
+            className="flex items-center gap-2 hover:text-gray-200 transition"
+          >
             <FaUserCircle className="text-2xl" />
             <span>{username || "Guest"}</span>
-          </div>
+          </button>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 hover:text-gray-200"
+            className="flex items-center gap-2 hover:text-gray-200 transition"
           >
             <FaSignOutAlt />
             <span>Logout</span>
