@@ -14,18 +14,18 @@ class RoomManager:
     def get_room(self, room_id):
         return self.rooms.get(room_id)
 
-    def join_room(self, room_id, user_id, user_name, password=None):
+    def join_room(self, room_id, socket_id, user_name, password=None, user_id=None):
         room = self.get_room(room_id)
         if not room:
             return None, "Phòng không tồn tại."
 
-        # Kiểm tra mật khẩu
+
         if room.password and room.password != password:
             return None, "Mật khẩu không chính xác."
 
-        # Kiểm tra trùng user
-        if not any(p['id'] == user_id for p in room.players):
-            room.add_player(user_id, user_name)
+        # Kiểm tra trùng user (theo socket_id)
+        if not any(p['id'] == socket_id for p in room.players):
+            room.add_player(socket_id, user_name, user_id)
 
         return room, "Tham gia phòng thành công."
 

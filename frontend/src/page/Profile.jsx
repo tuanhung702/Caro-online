@@ -146,19 +146,19 @@ export default function Profile() {
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-100">
       {/* Navbar */}
       <header className="bg-blue-800 text-white px-6 py-4 flex justify-between items-center shadow-lg">
-        <h1 className="text-2xl font-bold">👤 Hồ sơ cá nhân</h1>
+        <h1 className="text-2xl font-bold">Hồ sơ cá nhân</h1>
         <div className="flex gap-3">
           <button
             onClick={() => navigate("/home")}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
           >
-            🏠 Trang chủ
+            Trang chủ
           </button>
           <button
             onClick={handleLogout}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition"
           >
-            🚪 Đăng xuất
+            Đăng xuất
           </button>
         </div>
       </header>

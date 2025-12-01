@@ -32,9 +32,24 @@ def handle_disconnect(sid=None):
             # Nếu đang trong phòng chờ (waiting) hoặc đang chơi (playing), người thoát sẽ thua
             if len(room.players) == 2 and remaining_player:
                 remaining = remaining_player[0]
+                disconnected = next((p for p in room.players if p['id'] == client_sid), None)
                 room.game_status = 'finished'
                 room.winner = remaining['symbol']
                 room.stop_move_timer()
+                
+                # 💾 Lưu kết quả match khi người chơi thoát (chỉ khi đang playing)
+                if room.game_status == 'playing' and remaining.get('user_id') and disconnected and disconnected.get('user_id'):
+                    from utils.match_service import save_match_result
+                    match_result = save_match_result(
+                        winner_user_id=remaining['user_id'],
+                        loser_user_id=disconnected['user_id'],
+                        elo_change_winner=50,
+                        elo_change_loser=-50,
+                        final_board_state=room.board,
+                        match_duration=None,
+                        end_reason="disconnect"
+                    )
+                    print(f"✅ Disconnect match saved: {match_result}")
                 
                 socketio.emit('opponent_left', {
                     'winner': remaining['symbol'],
@@ -82,13 +97,14 @@ def handle_create_room(data):
     if password == '' or password is None:
         password = None
     player_name = data.get('player_name', 'Player')
+    user_id = data.get('user_id')  # Lấy user_id từ database
 
     try:
-        print(f"DEBUG: Creating room with name={name}, password={password}, player_name={player_name}")
+        print(f"DEBUG: Creating room with name={name}, password={password}, player_name={player_name}, user_id={user_id}")
         new_room = room_manager.create_room(name, password)
         print(f"DEBUG: Room created with ID: {new_room.room_id}")
         
-        room, message = room_manager.join_room(new_room.room_id, sid, player_name, password)
+        room, message = room_manager.join_room(new_room.room_id, sid, player_name, password, user_id)
         print(f"DEBUG: Join room result: room={room is not None}, message={message}")
 
         if room:
@@ -133,11 +149,12 @@ def handle_join_room(data):
     room_id = data.get('room_id')
     player_name = data.get('player_name', 'Player')
     password = data.get('password')
+    user_id = data.get('user_id')  # Lấy user_id từ database
     # Xử lý password: nếu là empty string thì set về None
     if password == '':
         password = None
 
-    room, message = room_manager.join_room(room_id, sid, player_name, password)
+    room, message = room_manager.join_room(room_id, sid, player_name, password, user_id)
 
     if room:
         join_room(room_id)

@@ -292,6 +292,7 @@ function GameOnline() {
         name: createRoomName,
         password: createRoomPassword.trim() || null,
         player_name: playerName,
+        user_id: userId,
       });
     } else {
       alert("Chưa kết nối tới server. Vui lòng thử lại.");
@@ -307,6 +308,7 @@ function GameOnline() {
         socketRef.current.emit("join_room_request", {
           room_id: room.id,
           player_name: playerName,
+          user_id: userId,
           password: null,
         });
       }
@@ -319,6 +321,7 @@ function GameOnline() {
       socketRef.current.emit("join_room_request", {
         room_id: selectedRoom.id,
         player_name: playerName,
+        user_id: userId,
         password: joinPassword,
       });
     }

@@ -1,4 +1,4 @@
-import { FaUserCircle, FaSignOutAlt, FaPlay, FaList, FaChartBar } from "react-icons/fa";
+import { FaUserCircle, FaSignOutAlt, FaPlay, FaHistory, FaChartBar } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
@@ -23,7 +23,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Navbar */}
-      <header className="bg-blue-800 text-white px-6 py-3 flex justify-between items-center">
+    <header className="bg-blue-800 text-white px-6 py-3  h-[60px] flex justify-between items-center">
         <h1 className="text-xl font-semibold">Caro Online</h1>
         <div className="flex items-center gap-4">
           <button
@@ -69,9 +69,15 @@ export default function Home() {
             PLAY NOW
           </button>
 
-          {/* ROOM & RANK */}
+          {/* HISTORY & RANK */}
           <div className="flex gap-5 w-full">
-            
+            <button
+              onClick={() => navigate("/history")}
+              className="flex-1 bg-purple-700 text-white px-6 py-4 text-lg font-semibold rounded-xl shadow-md flex items-center justify-center gap-2 hover:bg-purple-600 transition"
+            >
+              <FaHistory size={20} />
+              LỊCH SỬ
+            </button>
             <button
               onClick={() => navigate("/rank")}
               className="flex-1 bg-pink-700 text-white px-6 py-4 text-lg font-semibold rounded-xl shadow-md flex items-center justify-center gap-2 hover:bg-pink-600 transition"

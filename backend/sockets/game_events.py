@@ -18,7 +18,6 @@ def handle_make_move(data):
     row = data.get('row')
     col = data.get('col')
     
-    # Debug log (Nên thêm vào để tiện theo dõi)
     print(f"DEBUG: Nhận make_move từ client {request.sid} Room: {room_id}, ({row}, {col})")
 
     room = room_manager.get_room(room_id)
@@ -32,6 +31,20 @@ def handle_make_move(data):
         def move_timeout_callback(winner_symbol, loser_symbol):
             winner = next((p for p in room.players if p['symbol'] == winner_symbol), None)
             loser = next((p for p in room.players if p['symbol'] == loser_symbol), None)
+            
+            # 💾 Lưu kết quả match khi hết thời gian
+            if winner and loser and winner.get('user_id') and loser.get('user_id'):
+                match_result = save_match_result(
+                    winner_user_id=winner['user_id'],
+                    loser_user_id=loser['user_id'],
+                    elo_change_winner=50,
+                    elo_change_loser=-50,
+                    final_board_state=room.board,
+                    match_duration=None,
+                    end_reason="timeout"
+                )
+                print(f"✅ Timeout match saved: {match_result}")
+            
             socketio.emit('move_timeout', {
                 'winner': winner_symbol,
                 'winner_name': winner['name'] if winner else winner_symbol,
@@ -60,15 +73,16 @@ def handle_make_move(data):
             winner_player = next((p for p in room.players if p['symbol'] == room.winner), None)
             loser_player = next((p for p in room.players if p['symbol'] != room.winner), None)
             
-            # 💾 Lưu kết quả match vào database
-            if winner_player and loser_player:
+            # 💾 Lưu kết quả match vào database (chỉ khi có user_id)
+            if winner_player and loser_player and winner_player.get('user_id') and loser_player.get('user_id'):
                 match_result = save_match_result(
-                    winner_user_id=winner_player['id'],
-                    loser_user_id=loser_player['id'],
-                    elo_change_winner=16,
-                    elo_change_loser=-16,
+                    winner_user_id=winner_player['user_id'],
+                    loser_user_id=loser_player['user_id'],
+                    elo_change_winner=50,
+                    elo_change_loser=-50,
                     final_board_state=room.board,
-                    match_duration=None
+                    match_duration=None,
+                    end_reason="normal"
                 )
                 print(f"✅ Match saved: {match_result}")
             
@@ -96,60 +110,6 @@ def handle_make_move(data):
         emit('error', {'message': 'Nước đi không hợp lệ'}, room=request.sid)
 
 
-    
-@socketio.on('surrender')
-def handle_surrender(data):
-    """Xử lý khi player đầu hàng."""
-    data = parse_data(data)
-    if data is None:
-        emit('error', {'message': 'Dữ liệu gửi lên không phải là JSON hợp lệ.'}, room=request.sid)
-        return
-    
-    room_id = data.get('room_id')
-    room = room_manager.get_room(room_id)
-    
-    if not room:
-        emit('error', {'message': 'Phòng không tồn tại'}, room=request.sid)
-        return
-    
-    result = room.surrender(request.sid)
-    
-    if result:
-        success, winner_symbol, loser_symbol = result
-        if success:
-            winner = next((p for p in room.players if p['symbol'] == winner_symbol), None)
-            loser = next((p for p in room.players if p['symbol'] == loser_symbol), None)
-            
-            # 💾 Lưu kết quả match vào database
-            if winner and loser:
-                match_result = save_match_result(
-                    winner_user_id=winner['id'],
-                    loser_user_id=loser['id'],
-                    elo_change_winner=16,
-                    elo_change_loser=-16,
-                    final_board_state=room.board,
-                    match_duration=None
-                )
-                print(f"✅ Surrender match saved: {match_result}")
-            
-            socketio.emit('surrender_result', {
-                'winner': winner_symbol,
-                'winner_name': winner['name'] if winner else winner_symbol,
-                'loser': loser_symbol,
-                'loser_name': loser['name'] if loser else loser_symbol,
-                'message': f'Người chơi {winner["name"] if winner else winner_symbol} thắng! Đối thủ đã đầu hàng.'
-            }, room=room_id)
-            
-            # Reset về waiting state để có thể chơi lại
-            room.game_status = 'waiting'
-            room.board = [[None for _ in range(20)] for _ in range(20)]
-            room.current_player = 'X'
-            room.winner = None
-            room.ready_players.clear()
-            for player in room.players:
-                player['ready'] = False
-            
-            room_manager.update_rooms_list(socketio)
     
 @socketio.on('get_rooms')
 def handle_get_rooms():

@@ -7,22 +7,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # --- Nạp file .env ---
 load_dotenv()
 
-# --- LẤY BIẾN MÔI TRƯỜNG ---
-# ĐÚNG
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
-
-# --- KIỂM TRA ĐÃ NẠP ĐÚNG CHƯA ---
 if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    raise ValueError("❌ Thiếu biến môi trường SUPABASE_URL hoặc SUPABASE_SERVICE_KEY trong file .env")
+    raise ValueError(" Thiếu biến môi trường SUPABASE_URL hoặc SUPABASE_SERVICE_KEY trong file .env")
 
 # --- KẾT NỐI SUPABASE ---
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-# Ghi chú: Sử dụng SERVICE_KEY để bypass RLS (Row Level Security)
-# Điều này cần thiết vì backend cần toàn quyền truy cập database
-# Chỉ sử dụng anon key trên frontend với RLS bật
 
 # --- 1. HÀM ĐĂNG NHẬP ---
 def authenticate_user(email: str, password: str):
@@ -59,10 +51,7 @@ def authenticate_user(email: str, password: str):
 
 # --- 2. HÀM ĐĂNG KÝ ---
 def register_new_user(email: str, password: str, username: str):
-    """Register a new user into `Users` and `Profiles`.
-
-    Returns {success: True, message} or {success: False, message}.
-    """
+ 
     try:
         # check existing email
         exists = supabase.table('Users').select('user_id').eq('email', email).execute()
@@ -95,7 +84,7 @@ def register_new_user(email: str, password: str, username: str):
         try:
             supabase.table('Profiles').insert(profile_data).execute()
         except Exception as profile_err:
-            print(f"⚠️ profile create warning: {profile_err}")
+            print(f" profile create warning: {profile_err}")
             # attempt to rollback user creation
             try:
                 supabase.table('Users').delete().eq('user_id', user_id).execute()
@@ -120,11 +109,9 @@ def update_user_profile(user_id: int, username: str = None, password: str = None
     Returns {success: True, message} or {success: False, message}.
     """
     try:
-        # Update username in Profiles if provided
         if username:
             supabase.table('Profiles').update({'username': username}).eq('user_id', user_id).execute()
 
-        # Update password in Users if provided
         if password:
             pw_hash = generate_password_hash(password)
             supabase.table('Users').update({'password_hash': pw_hash}).eq('user_id', user_id).execute()

@@ -6,6 +6,7 @@ import GameOffline from "./page/GameOffline";
 import Home from "./page/Home";
 import Profile from "./page/Profile";
 import Rank from "./page/Rank";
+import History from "./page/History";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -59,6 +60,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Rank />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            <ProtectedRoute>
+              <History />
             </ProtectedRoute>
           }
         />

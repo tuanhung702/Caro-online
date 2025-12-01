@@ -1,2 +1,3 @@
-// API Configuration
-export const BACKEND_URL = "http://localhost:5001";
+
+export const BACKEND_URL = "http://0.0.0.0:5001";
+//localhost:5001

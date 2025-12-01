@@ -161,13 +161,13 @@ export default function Rank() {
 
             {/* Total Players */}
             <div className="bg-gradient-to-br from-blue-400 to-blue-600 text-white rounded-lg p-6 shadow-lg">
-              <p className="text-sm opacity-90 mb-2">👥 Tổng người chơi</p>
+              <p className="text-sm opacity-90 mb-2"> Tổng người chơi</p>
               <p className="text-3xl font-bold">{rankings.length}</p>
             </div>
 
             {/* Average Elo */}
             <div className="bg-gradient-to-br from-purple-400 to-purple-600 text-white rounded-lg p-6 shadow-lg">
-              <p className="text-sm opacity-90 mb-2">📊 Elo trung bình</p>
+              <p className="text-sm opacity-90 mb-2"> Elo trung bình</p>
               <p className="text-3xl font-bold">
                 {Math.round(
                   rankings.reduce((sum, p) => sum + p.elo_score, 0) / rankings.length

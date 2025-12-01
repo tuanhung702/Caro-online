@@ -14,13 +14,12 @@ from flask_cors import CORS  # Thêm CORS để React frontend gọi được
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'caro_secret_key'
 
-CORS(app)  # ✅ Cho phép frontend gọi API
+CORS(app)  
 socketio.init_app(app)
 
-# 🟢 Đăng ký blueprint
 app.register_blueprint(room_bp, url_prefix='/api')
-app.register_blueprint(auth_bp)  # Không cần url_prefix ở đây
-app.register_blueprint(match_bp)  # Match history routes
+app.register_blueprint(auth_bp)  
+app.register_blueprint(match_bp) 
 
 @app.route('/')
 def index():

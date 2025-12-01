@@ -107,7 +107,7 @@ class GameRoom:
         """Dừng timer lượt đi."""
         self.move_timer_running = False
         
-    def add_player(self, player_id, player_name):
+    def add_player(self, player_id, player_name, user_id=None):
         """Thêm người chơi vào phòng, gán ký hiệu 'X' hoặc 'O'."""
         if len(self.players) < 2:
             player_symbol = 'X' if len(self.players) == 0 else 'O'
@@ -115,7 +115,8 @@ class GameRoom:
                 'id': player_id,
                 'name': player_name,
                 'symbol': player_symbol,
-                'ready': False
+                'ready': False,
+                'user_id': user_id  # ID người dùng từ database
             })
             return player_symbol
         return None
@@ -124,7 +125,7 @@ class GameRoom:
         """Xóa người chơi khỏi phòng."""
         self.players = [p for p in self.players if p['id'] != player_id]
 
-    # --- CHỨC NĂNG CỜ CARO (make_move, check_winner...) giữ nguyên logic của bạn ---
+
     def make_move(self, row, col, player_id):
         if self.game_status != 'playing':
             return False
